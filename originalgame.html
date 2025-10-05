@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ピクセルペット☆スライム育成（ポーズ付き）</title>
+<style>
+  :root{
+    --bg-sky:#a9d6ff;
+    --bg-sky-night:#1a2240;
+    --bg-ground:#6bb36b;
+    --ui-dark:#222;
+    --ui-light:#f7f7fb;
+  }
+
+  body{
+    margin:0;
+    font-family: ui-rounded, system-ui, -apple-system, "Segoe UI",
+      "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    background: linear-gradient(var(--bg-sky), var(--bg-sky) 60%, var(--bg-ground) 60%, var(--bg-ground));
+    min-height:100svh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#1b1b1b;
+  }
+  .night{
+    background: linear-gradient(var(--bg-sky-night), var(--bg-sky-night) 60%, var(--bg-ground) 60%, var(--bg-ground));
+    color:#e8ecff;
+  }
+
+  .box{
+    width:min(860px, 96vw);
+    background:var(--ui-light);
+    border:4px solid #3d3d3d;
+    border-radius:16px;
+    box-shadow:8px 8px 0 rgba(0,0,0,.25), inset 4px 4px 0 rgba(255,255,255,.5);
+    padding:16px;
+  }
+  h1{ margin:0 0 10px 0; font-size:clamp(22px, 3vw, 32px); text-align:center; color:#111; }
+
+  .stage{
+    position:relative;
+    border:4px solid #3d3d3d;
+    border-radius:12px;
+    background: radial-gradient(ellipse at 50% 20%, rgba(255,255,255,.6), transparent 60%);
+    height: 280px;
+    overflow:hidden;
+  }
+  .night .stage{
+    background: radial-gradient(ellipse at 50% 20%, rgba(255,255,255,.12), transparent 60%);
+  }
+
+  .sun, .moon{
+    position:absolute; top:18px; right:18px; width:42px;height:42px;border-radius:50%;
+    box-shadow:0 0 20px rgba(255,255,255,.4);
+  }
+  .sun{ background:#ffe08a; }
+  .night .sun{ display:none; }
+  .moon{ display:none; background:#eaefff;}
+  .night .moon{ display:block; }
+
+  .slime{
+    --slime: #5bd1ff;
+    position:absolute; left:50%; bottom:20px; transform:translateX(-50%);
+    width:180px; height:140px;
+    background: radial-gradient(ellipse at 40% 30%, rgba(255,255,255,.7), rgba(255,255,255,0) 50%), var(--slime);
+    border-radius: 120px 120px 60px 60px;
+    border:4px solid #2b6aa8;
+    box-shadow: 0 8px 0 rgba(0,0,0,.2) inset;
+    transition: transform .2s ease, background .3s ease;
+  }
+  .slime.face::after{
+    content: "●   ●\A  ＿";
+    white-space: pre;
+    font-weight: 700; line-height: 1.2; color:#1b1b1b;
+    position:absolute; top:38%; left:50%; transform:translateX(-50%);
+    text-align:center; font-size:22px;
+  }
+  .slime.sleep::after{ content:"-   -\A  ω"; }
+
+  .bubble{
+    position:absolute; left:50%; top:18px; transform:translateX(-50%);
+    background:white; color:#222; border:3px solid #333; border-radius:8px;
+    padding:8px 12px; font-weight:700; box-shadow:4px 4px 0 rgba(0,0,0,.25);
+    opacity:0; transition:opacity .25s ease; pointer-events:none;
+  }
+  .bubble.show{ opacity:1; }
+
+  /* ⏸ ポーズ中のオーバーレイ（ステージの上に出す） */
+  .pause-overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background: rgba(0,0,0,.35); color:#fff; font-weight:900; font-size:clamp(18px,3vw,28px);
+    border:3px solid #333; backdrop-filter: blur(2px);
+    opacity:0; pointer-events:none; transition: opacity .2s ease; z-index:5;
+  }
+  .pause-overlay.show{ opacity:1; }
+
+  .stats{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin:14px 0 6px; }
+  @media (min-width:780px){ .stats{ grid-template-columns: repeat(4,1fr); } }
+
+  .meter{ background:#f0f2ff; border:3px solid #3d3d3d; border-radius:8px; padding:6px 8px; }
+  .meter h3{ margin:0 0 4px 0; font-size:14px; color:#222; display:flex; justify-content:space-between; align-items:center; }
+  .bar{ background:#e5e7ff; height:14px; border:2px solid #3d3d3d; border-radius:6px; overflow:hidden; }
+  .fill{ height:100%; width:50%; background: linear-gradient(90deg, #84d8ff, #2ea0ff); transition: width .2s ease; }
+  .fill.ok{ background: linear-gradient(90deg, #86efac, #22c55e);}
+  .fill.warn{ background: linear-gradient(90deg, #fde68a, #f59e0b);}
+  .fill.bad{ background: linear-gradient(90deg, #fca5a5, #ef4444);}
+
+  .controls{ display:grid; grid-template-columns: repeat(2,1fr); gap:10px; }
+  @media (min-width:780px){ .controls{ grid-template-columns: repeat(6,1fr); } } /* ← 6ボタンに合わせた */
+
+  .btn{
+    font-weight:900; border:3px solid #3d3d3d; border-radius:10px;
+    background:#ffffff; color:#111; padding:12px 10px; cursor:pointer;
+    transition: transform .05s ease, filter .1s ease; user-select:none; text-align:center;
+    box-shadow: 4px 4px 0 rgba(0,0,0,.25), inset 3px 3px 0 rgba(255,255,255,.65);
+  }
+  .btn:active{ transform: translateY(2px); filter: brightness(.9); }
+  .btn.primary{ background:linear-gradient(#ffffff,#f2f6ff);}
+  .btn.sleeping{ background:#dbeafe; }
+  .btn.danger{ background:#fee2e2; color:#7f1d1d; }
+  .btn:disabled{ opacity:.6; cursor:not-allowed; filter:grayscale(.2); }
+
+  .footer{ display:flex; gap:10px; flex-wrap:wrap; padding-top:10px; color:#333; }
+  .chip{ border:3px solid #3d3d3d; border-radius:10px; background:#fff; padding:8px 10px;
+         box-shadow: inset 3px 3px 0 rgba(255,255,255,.65); font-weight:800; }
+  .note{ margin-top:10px; font-size:13px; color:#333; }
+</style>
+</head>
+<body>
+
+  <main class="box" id="game">
+    <h1>ピクセルペット ☆ スライム育成</h1>
+
+    <!-- キャラクターがいる場所（ステージ） -->
+    <section class="stage" aria-label="ステージ">
+      <div class="sun" aria-hidden="true"></div>
+      <div class="moon" aria-hidden="true"></div>
+      <div id="slime" class="slime face" role="img" aria-label="スライム"></div>
+      <div id="bubble" class="bubble" aria-live="polite">こんにちは！</div>
+      <!-- ⏸ ポーズ中の表示 -->
+      <div id="pauseOverlay" class="pause-overlay" aria-hidden="true">⏸ 一時停止中</div>
+    </section>
+
+    <!-- ステータス（メーター） -->
+    <section class="stats">
+      <div class="meter">
+        <h3><span>おなか</span><span id="v-hunger">--</span></h3>
+        <div class="bar"><div id="bar-hunger" class="fill"></div></div>
+      </div>
+      <div class="meter">
+        <h3><span>げんき</span><span id="v-energy">--</span></h3>
+        <div class="bar"><div id="bar-energy" class="fill"></div></div>
+      </div>
+      <div class="meter">
+        <h3><span>きれい</span><span id="v-clean">--</span></h3>
+        <div class="bar"><div id="bar-clean" class="fill"></div></div>
+      </div>
+      <div class="meter">
+        <h3><span>ごきげん</span><span id="v-fun">--</span></h3>
+        <div class="bar"><div id="bar-fun" class="fill"></div></div>
+      </div>
+    </section>
+
+    <!-- ゲームの操作ボタン -->
+    <section class="controls">
+      <button id="btn-feed" class="btn primary">🍽 ごはん</button>
+      <button id="btn-play" class="btn primary">🎲 あそぶ</button>
+      <button id="btn-bath" class="btn primary">🫧 おふろ</button>
+      <button id="btn-sleep" class="btn primary">😴 ねる</button>
+      <button id="btn-med"   class="btn danger">💊 おくすり</button>
+      <!-- ⏸ ポーズボタン -->
+      <button id="btn-pause" class="btn">⏸ 一時停止</button>
+    </section>
+
+    <!-- レベルなど -->
+    <section class="footer">
+      <div class="chip">レベル <span id="v-level">1</span></div>
+      <div class="chip">けいけんち <span id="v-xp">0</span>/<span id="v-next">30</span></div>
+      <div class="chip">モード：<span id="v-mode">昼</span></div>
+    </section>
+
+    <p class="note">
+      あそびかた：スライムは時間がたつと、おなかやげんきがへります。<br/>
+      ボタンでおせわして、メーターを高くたもつと「レベルアップ」します。<br/>
+      「ねる」はもういちどおすと おきます。夜と昼は自動で入れかわります。<br/>
+      「⏸ 一時停止」はゲームの時間を止めます（もう一度で再開）。
+    </p>
+  </main>
+
+<script>
+  "use strict";
+
+  /* これは「スライムをそだてるゲーム」です。
+     一時停止ボタンでゲームの時間の進みを止めることができます。 */
+
+  const SAVE_KEY = "pixelpet_slime_v2_pause";
+
+  /* スライムの今の状態（ステータス） */
+  const state = {
+    hunger: 70,
+    energy: 70,
+    clean:  70,
+    fun:    70,
+    level:  1,
+    xp:     0,
+    nextXP: 30,
+    sleeping: false,
+    isNight:  false,
+    paused:   false,  /* ← ポーズ中かどうか */
+    tick: 0
+  };
+
+  function byId(id){ return document.getElementById(id); }
+
+  function vibrate(ms){ if(navigator.vibrate){ navigator.vibrate(ms); } }
+
+  function clamp01to100(value){
+    if(value < 0){ return 0; }
+    if(value > 100){ return 100; }
+    return value;
+  }
+
+  function renderBars(){
+    updateBar("hunger", state.hunger);
+    updateBar("energy", state.energy);
+    updateBar("clean",  state.clean);
+    updateBar("fun",    state.fun);
+  }
+  function updateBar(kind, value){
+    const fill = byId("bar-" + kind);
+    const text = byId("v-" + kind);
+    const width = String(value) + "%";
+    fill.style.width = width;
+    text.textContent = Math.round(value);
+    fill.classList.remove("ok","warn","bad");
+    if(value >= 60){ fill.classList.add("ok"); }
+    else if(value >= 30){ fill.classList.add("warn"); }
+    else { fill.classList.add("bad"); }
+  }
+
+  function renderLevel(){
+    byId("v-level").textContent = state.level;
+    byId("v-xp").textContent = state.xp;
+    byId("v-next").textContent = state.nextXP;
+  }
+
+  function renderDayNight(){
+    const root = document.body;
+    const modeText = byId("v-mode");
+    if(state.isNight){
+      root.classList.add("night");
+      modeText.textContent = "夜";
+    }else{
+      root.classList.remove("night");
+      modeText.textContent = "昼";
+    }
+  }
+
+  function renderSlime(){
+    const slime = byId("slime");
+    if(state.sleeping){
+      slime.classList.add("sleep");
+      slime.classList.remove("face");
+    }else{
+      slime.classList.add("face");
+      slime.classList.remove("sleep");
+    }
+    if(state.level >= 10){
+      slime.style.width  = "240px";
+      slime.style.height = "180px";
+      slime.style.setProperty("--slime", "#7effaf");
+    }else if(state.level >= 5){
+      slime.style.width  = "210px";
+      slime.style.height = "160px";
+      slime.style.setProperty("--slime", "#7fb8ff");
+    }else{
+      slime.style.width  = "180px";
+      slime.style.height = "140px";
+      slime.style.setProperty("--slime", "#5bd1ff");
+    }
+  }
+
+  let talkTimer = 0;
+  function say(message){
+    const b = byId("bubble");
+    b.textContent = message;
+    b.classList.add("show");
+    if(talkTimer){ clearTimeout(talkTimer); }
+    talkTimer = setTimeout(hideBubble, 1800);
+  }
+  function hideBubble(){
+    const b = byId("bubble");
+    b.classList.remove("show");
+  }
+
+  /* ===== ボタンのこうどう ===== */
+  function onClickFeed(){
+    if(state.paused){ return; } /* ← ポーズ中は何もしない */
+    state.hunger = clamp01to100(state.hunger + 22);
+    state.energy = clamp01to100(state.energy + 6);
+    state.clean  = clamp01to100(state.clean  - 6);
+    gainXP(6);
+    renderBars();
+    say("もぐもぐ！おいしい～");
+    bump();
+    vibrate(15);
+    saveState();
+  }
+
+  function onClickPlay(){
+    if(state.paused){ return; }
+    state.fun    = clamp01to100(state.fun    + 20);
+    state.energy = clamp01to100(state.energy - 10);
+    state.clean  = clamp01to100(state.clean  - 6);
+    gainXP(6);
+    renderBars();
+    say("わーい！たのしい！");
+    shake();
+    vibrate(20);
+    saveState();
+  }
+
+  function onClickBath(){
+    if(state.paused){ return; }
+    state.clean  = clamp01to100(state.clean  + 26);
+    state.fun    = clamp01to100(state.fun    + 8);
+    state.energy = clamp01to100(state.energy - 6);
+    gainXP(5);
+    renderBars();
+    say("ピカピカになったよ！");
+    vibrate(10);
+    saveState();
+  }
+
+  function onClickSleep(){
+    if(state.paused){ return; }
+    state.sleeping = !state.sleeping;
+    const btn = byId("btn-sleep");
+    if(state.sleeping){
+      btn.classList.add("sleeping");
+      btn.textContent = "⏰ おきる";
+      say("おやすみ…Zzz");
+    }else{
+      btn.classList.remove("sleeping");
+      btn.textContent = "😴 ねる";
+      say("おはよう！");
+    }
+    renderSlime();
+    vibrate(8);
+    saveState();
+  }
+
+  function onClickMedicine(){
+    if(state.paused){ return; }
+    if(canUseMedicine()){
+      state.hunger = clamp01to100(state.hunger + 14);
+      state.energy = clamp01to100(state.energy + 14);
+      state.clean  = clamp01to100(state.clean  + 14);
+      state.fun    = clamp01to100(state.fun    + 14);
+      say("げんきが出てきたよ！");
+      gainXP(4);
+      renderBars();
+      vibrate(10);
+      saveState();
+    }else{
+      say("まだだいじょうぶ！");
+    }
+  }
+  function canUseMedicine(){
+    return (state.hunger < 30 || state.energy < 30 || state.clean < 30 || state.fun < 30);
+  }
+
+  /* ⏸ ポーズボタン（押すたびに停止⇄再開） */
+  function onClickPause(){
+    state.paused = !state.paused;
+    updatePauseUI();
+    saveState();
+  }
+
+  /* うれしいジャンプ */
+  function bump(){
+    const s = byId("slime");
+    s.style.transform = "translateX(-50%) translateY(-10px)";
+    setTimeout(resetBump, 150);
+  }
+  function resetBump(){
+    const s = byId("slime");
+    s.style.transform = "translateX(-50%) translateY(0)";
+  }
+
+  /* ステージをゆらす（遊んだとき） */
+  function shake(){
+    const stage = document.querySelector(".stage");
+    stage.style.transition = "transform .08s ease";
+    stage.style.transform = "translateX(3px)";
+    setTimeout(shakeBack1, 80);
+  }
+  function shakeBack1(){
+    const stage = document.querySelector(".stage");
+    stage.style.transform = "translateX(-3px)";
+    setTimeout(shakeBack2, 80);
+  }
+  function shakeBack2(){
+    const stage = document.querySelector(".stage");
+    stage.style.transform = "translateX(0)";
+  }
+
+  /* ===== 1秒ごとに動くゲームの時間 ===== */
+
+  let loopId = 0;
+
+  function updateEverySecond(){
+    /* ⏸ ポーズ中は何もしない（時間が止まる） */
+    if(state.paused){ return; }
+
+    state.tick += 1;
+
+    if(state.sleeping){
+      state.energy = clamp01to100(state.energy + 2);
+      state.hunger = clamp01to100(state.hunger - 1);
+      state.fun    = clamp01to100(state.fun    - 1);
+    }else{
+      if(state.tick % 2 === 0){ state.hunger = clamp01to100(state.hunger - 2); }
+      if(state.tick % 3 === 0){ state.fun    = clamp01to100(state.fun    - 2); }
+      if(state.tick % 5 === 0){ state.clean  = clamp01to100(state.clean  - 1); }
+      if(state.tick % 2 === 0){ state.energy = clamp01to100(state.energy - 1); }
+    }
+
+    const avg = Math.round((state.hunger + state.energy + state.clean + state.fun) / 4);
+    if(avg >= 70 && state.tick % 2 === 0){ gainXP(1); }
+
+    if(state.tick % 20 === 0){
+      state.isNight = !state.isNight;
+      renderDayNight();
+      if(state.isNight){ say("よるになったよ"); } else { say("あさになったよ"); }
+    }
+
+    renderBars();
+    renderButtons();
+    renderSlime();
+
+    if(avg < 30 && state.tick % 4 === 0){ say("おせわして～！"); }
+    if(state.tick % 15 === 0 && !state.sleeping){ say("いっしょにあそぼ！"); }
+  }
+
+  function gainXP(amount){
+    state.xp += amount;
+    while(state.xp >= state.nextXP){
+      state.xp -= state.nextXP;
+      levelUp();
+    }
+    renderLevel();
+  }
+
+  function levelUp(){
+    state.level += 1;
+    say("レベルアップ！ Lv." + state.level);
+    state.nextXP = Math.round(state.nextXP * 1.1) + 5;
+  }
+
+  /* ボタンの有効/無効の見た目を更新 */
+  function renderButtons(){
+    const bFeed = byId("btn-feed");
+    const bPlay = byId("btn-play");
+    const bBath = byId("btn-bath");
+    const bSleep= byId("btn-sleep");
+    const bMed  = byId("btn-med");
+    const bPause= byId("btn-pause");
+
+    /* ⏸ ポーズ中は、ポーズボタン以外はおやすみ */
+    if(state.paused){
+      bFeed.disabled = true;
+      bPlay.disabled = true;
+      bBath.disabled = true;
+      bSleep.disabled= true;
+      bMed.disabled  = true;
+    }else{
+      if(state.sleeping){
+        bFeed.disabled = true;
+        bPlay.disabled = true;
+        bBath.disabled = true;
+      }else{
+        bFeed.disabled = false;
+        bPlay.disabled = false;
+        bBath.disabled = false;
+      }
+      bMed.disabled = !canUseMedicine();
+      bSleep.disabled = false;
+    }
+
+    /* ポーズボタンは常に押せる（表示の切替だけ） */
+    bPause.disabled = false;
+  }
+
+  /* ⏸ 見た目（ボタン文言・オーバーレイ）をそろえる */
+  function updatePauseUI(){
+    const bPause = byId("btn-pause");
+    const overlay = byId("pauseOverlay");
+    if(state.paused){
+      bPause.textContent = "▶ 再開";
+      overlay.classList.add("show");
+      overlay.setAttribute("aria-hidden","false");
+      say("ゲームを一時停止中");
+    }else{
+      bPause.textContent = "⏸ 一時停止";
+      overlay.classList.remove("show");
+      overlay.setAttribute("aria-hidden","true");
+      say("ゲームを再開！");
+    }
+    renderButtons();
+  }
+
+  /* ===== セーブ＆ロード ===== */
+
+  function saveState(){
+    const data = JSON.stringify(state);
+    try{ localStorage.setItem(SAVE_KEY, data); }catch(err){}
+  }
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(SAVE_KEY);
+      if(!raw){ return false; }
+      const d = JSON.parse(raw);
+      state.hunger   = clamp01to100(Number(d.hunger||70));
+      state.energy   = clamp01to100(Number(d.energy||70));
+      state.clean    = clamp01to100(Number(d.clean||70));
+      state.fun      = clamp01to100(Number(d.fun||70));
+      state.level    = Math.max(1, Number(d.level||1));
+      state.xp       = Math.max(0, Number(d.xp||0));
+      state.nextXP   = Math.max(10, Number(d.nextXP||30));
+      state.sleeping = Boolean(d.sleeping||false);
+      state.isNight  = Boolean(d.isNight||false);
+      state.paused   = Boolean(d.paused||false); /* ← 以前の状態を復元 */
+      state.tick     = 0;
+      return true;
+    }catch(err){
+      return false;
+    }
+  }
+
+  /* ===== イベント準備＆起動 ===== */
+
+  function bindEvents(){
+    byId("btn-feed").addEventListener("click", onClickFeed);
+    byId("btn-play").addEventListener("click", onClickPlay);
+    byId("btn-bath").addEventListener("click", onClickBath);
+    byId("btn-sleep").addEventListener("click", onClickSleep);
+    byId("btn-med").addEventListener("click", onClickMedicine);
+    byId("btn-pause").addEventListener("click", onClickPause);
+  }
+
+  function startGame(){
+    const loaded = loadState();
+    if(!loaded){ say("こんにちは！ぼくはスライムだよ！"); } else { say("おかえり！"); }
+
+    renderBars();
+    renderLevel();
+    renderDayNight();
+    renderSlime();
+    updatePauseUI(); /* ← 保存されていたポーズ状態も見た目に反映 */
+    renderButtons();
+
+    loopId = setInterval(updateEverySecond, 1000);
+  }
+
+  bindEvents();
+  startGame();
+</script>
+</body>
+</html>
